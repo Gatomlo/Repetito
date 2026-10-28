@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8a2145">
+<title>Répétito — apprends ton texte</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Répétito">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===================== LOGIN ===================== -->
+  <section id="screen-login" class="screen">
+    <div class="login-box">
+      <h1>🎭 Répétito</h1>
+      <p class="muted" id="login-hint">Connecte-toi pour retrouver tes répliques, tes annotations et ta progression.</p>
+      <form id="login-form">
+        <input id="login-name" type="text" placeholder="Identifiant" maxlength="40" autocomplete="username" required>
+        <input id="login-password" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
+        <button type="submit" class="btn btn-primary btn-lg">Entrer</button>
+      </form>
+      <button type="button" id="btn-show-recovery" class="btn btn-ghost btn-sm">Mot de passe oublié ?</button>
+
+      <form id="recovery-request-form" class="hidden">
+        <p class="hint">Reçois un code par mail à l'adresse enregistrée sur ton compte, pour choisir un nouveau mot de passe.</p>
+        <input id="recovery-name" type="text" placeholder="Identifiant" maxlength="40" autocomplete="username" required>
+        <button type="submit" class="btn btn-primary btn-lg">Recevoir un code par mail</button>
+        <button type="button" id="btn-hide-recovery" class="btn btn-ghost">← Retour à la connexion</button>
+      </form>
+
+      <form id="recovery-form" class="hidden">
+        <p class="hint" id="recovery-sent-hint">Un code vient d'être envoyé par mail (valable 30 minutes), s'il existe et a une adresse mail enregistrée.</p>
+        <input id="recovery-code" type="text" placeholder="Code reçu par mail" maxlength="6" autocomplete="off" required>
+        <input id="recovery-new-password" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" required minlength="4">
+        <button type="submit" class="btn btn-primary btn-lg">Définir mon nouveau mot de passe</button>
+        <button type="button" id="btn-resend-recovery" class="btn btn-ghost btn-sm">Renvoyer le code</button>
+        <button type="button" id="btn-cancel-recovery" class="btn btn-ghost">← Retour à la connexion</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ===================== APP SHELL (topbar + content + bottom nav) ===================== -->
+  <div id="shell" class="hidden">
+    <header id="topbar">
+      <button id="btn-back" class="icon-btn hidden" title="Retour">←</button>
+      <div id="topbar-title">Répétito</div>
+      <span id="sync-badge" class="sync-badge hidden" title="Modifications en attente de synchronisation (reprendra au retour du réseau)">⏳</span>
+      <button id="btn-menu" class="icon-btn" title="Menu">☰</button>
+    </header>
+
+    <div id="user-menu-backdrop" class="user-menu-backdrop hidden"></div>
+    <div id="user-menu" class="user-menu hidden">
+      <div class="user-menu-header">
+        <div id="user-menu-name">—</div>
+        <div id="user-menu-role" class="hint">—</div>
+      </div>
+      <button type="button" id="menu-change-password" class="user-menu-item">🔒 Changer mon mot de passe</button>
+      <button type="button" id="menu-goto-accounts" class="user-menu-item admin-only hidden">🔑 Gérer les comptes</button>
+      <button type="button" id="menu-logout" class="user-menu-item user-menu-item-danger">🚪 Se déconnecter</button>
+    </div>
+
+    <main id="content">
+
+      <!-- Bibliothèque -->
+      <section id="screen-library" class="screen">
+        <div id="install-tip" class="install-tip hidden">
+          <span id="install-tip-text"></span>
+          <button id="install-tip-close" class="icon-btn" title="Fermer">✕</button>
+        </div>
+        <div class="section-row">
+          <h2>Bibliothèque de pièces</h2>
+          <button id="btn-new-play" class="btn btn-primary admin-only hidden">+ Importer une pièce</button>
+        </div>
+        <div id="library-list" class="card-list"></div>
+      </section>
+
+      <!-- Gestion des comptes (admin) -->
+      <section id="screen-accounts" class="screen">
+        <div class="panel">
+          <h3>Créer un compte</h3>
+          <p class="hint">Choisis un identifiant et un rôle. Un mot de passe temporaire est généré automatiquement — communique-le à la personne, elle devra le changer à sa première connexion.</p>
+          <label class="field-label" for="new-account-name">Identifiant</label>
+          <input id="new-account-name" type="text" placeholder="Ex : Julie" maxlength="40">
+          <label class="field-label" for="new-account-email">Adresse mail (optionnelle)</label>
+          <input id="new-account-email" type="email" placeholder="Pour qu'elle puisse réinitialiser son mot de passe elle-même" maxlength="100">
+          <label class="field-label" for="new-account-role">Rôle</label>
+          <select id="new-account-role">
+            <option value="user">Utilisateur (accès aux pièces partagées uniquement)</option>
+            <option value="director">Metteur en scène (accès partagé + progression de la troupe)</option>
+            <option value="admin">Administrateur (accès complet)</option>
+          </select>
+          <button id="btn-create-account" class="btn btn-primary btn-lg">+ Créer le compte</button>
+          <details class="bulk-create">
+            <summary>Créer plusieurs comptes d'un coup</summary>
+            <p class="hint">Un identifiant par ligne (jusqu'à 200). Les noms déjà pris sont ignorés. Tu obtiens ensuite la liste des mots de passe temporaires, à copier ou à imprimer.</p>
+            <textarea id="bulk-account-names" rows="6" placeholder="Julie&#10;Marc&#10;Sophie…"></textarea>
+            <div class="field-row">
+              <label>Rôle
+                <select id="bulk-account-role">
+                  <option value="user">Utilisateur</option>
+                  <option value="director">Metteur en scène</option>
+                  <option value="admin">Administrateur</option>
+                </select>
+              </label>
+              <label>Troupe
+                <select id="bulk-account-troupe"><option value="">— Aucune —</option></select>
+              </label>
+            </div>
+            <button id="btn-create-bulk" class="btn btn-primary btn-lg">+ Créer ces comptes</button>
+          </details>
+        </div>
+        <div class="panel hidden" id="temp-password-box"></div>
+        <div class="panel hidden" id="bulk-result-box"></div>
+
+        <div class="panel">
+          <h3>💾 Sauvegarde</h3>
+          <p class="hint">Toutes les données (comptes, pièces, annotations, progression) tiennent dans un seul fichier. Le serveur en garde une copie datée toutes les 6 heures (7 jours conservés) ; télécharge-en aussi régulièrement une et range-la ailleurs. Les enregistrements audio des comédiens ne sont pas inclus.</p>
+          <p id="backup-status" class="hint"></p>
+          <button id="btn-download-backup" class="btn btn-ghost">💾 Télécharger une sauvegarde</button>
+        </div>
+
+        <div class="panel">
+          <h3>Troupes</h3>
+          <p class="hint">Regroupe des comptes pour partager une pièce à tout le monde d'un coup, sans les cocher un par un — pratique dès qu'il y a beaucoup de comédiens.</p>
+          <div class="inline-form">
+            <input id="new-troupe-name" type="text" placeholder="Nom de la troupe (ex : Troupe du samedi)" maxlength="100">
+            <button id="btn-create-troupe" class="btn btn-primary btn-sm">+ Créer</button>
+          </div>
+          <div id="troupes-list" class="card-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="section-row">
+            <h3>Comptes</h3>
+            <span id="accounts-count" class="badge">0</span>
+          </div>
+          <div class="accounts-toolbar">
+            <input id="accounts-search" type="search" placeholder="🔍 Rechercher un compte…" autocomplete="off">
+            <select id="accounts-filter-troupe" aria-label="Filtrer par troupe"></select>
+            <select id="accounts-filter-role" aria-label="Filtrer par rôle">
+              <option value="">Tous les rôles</option>
+              <option value="user">Utilisateurs</option>
+              <option value="director">Metteurs en scène</option>
+              <option value="admin">Administrateurs</option>
+              <option value="pending">Mot de passe temporaire</option>
+            </select>
+          </div>
+          <div id="accounts-bulkbar" class="accounts-bulkbar hidden"></div>
+          <label class="accounts-selectall"><input type="checkbox" id="accounts-select-all"> <span id="accounts-select-all-label">Tout sélectionner</span></label>
+          <div id="accounts-list" class="account-list"></div>
+          <div id="accounts-pager" class="pager"></div>
+        </div>
+      </section>
+
+      <!-- Import -->
+      <section id="screen-import" class="screen">
+        <h2 id="import-heading">Importer une pièce</h2>
+        <div id="import-step-paste">
+          <label class="field-label" for="import-title">Titre de la pièce</label>
+          <input id="import-title" type="text" placeholder="Ex : L'Avare, Acte I à III">
+          <label class="field-label" for="import-file">Importer un fichier (Word, PDF ou texte)</label>
+          <input id="import-file" type="file" accept=".docx,.pdf,.txt,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+          <p class="hint" id="import-file-status">Le texte du fichier est extrait puis affiché ci-dessous, pour que tu le vérifies avant l'analyse.</p>
+          <label class="field-label" for="import-text">… ou colle le texte complet ici</label>
+          <textarea id="import-text" rows="12" placeholder="ACTE I&#10;SCÈNE 1&#10;HARPAGON. Que veut dire ceci...&#10;"></textarea>
+          <p class="hint">Astuce : garde les noms de personnages en MAJUSCULES suivis d'un point, deux-points ou tiret. Tu pourras corriger le découpage à l'étape suivante.</p>
+          <button id="btn-parse" class="btn btn-primary btn-lg">Analyser le texte →</button>
+        </div>
+        <div id="import-step-preview" class="hidden">
+          <div class="section-row">
+            <p class="muted" id="preview-summary"></p>
+            <button id="btn-back-to-paste" class="btn btn-ghost">← Recommencer</button>
+          </div>
+          <p class="hint">Vérifie et corrige le découpage : personnage, texte, ou type de ligne (réplique / didascalie / nouvelle scène / nouvel acte). Ajoute ou supprime des lignes si besoin.</p>
+          <div class="panel direction-tools">
+            <h3>🎬 Didascalies</h3>
+            <p class="hint">Les didascalies (indications de jeu) ne sont pas lues à voix haute. Pour qu'elles s'affichent toutes de la même façon, en cartes à part, utilise ces outils, ou sélectionne un passage dans une réplique puis « ✂️ Didascalie ».</p>
+            <div class="direction-tools-actions">
+              <button type="button" id="btn-fix-parens" class="btn btn-ghost btn-sm">( ) Sortir celles entre parenthèses</button>
+              <button type="button" id="btn-find-glued" class="btn btn-ghost btn-sm">🔎 Repérer celles collées aux répliques</button>
+              <button type="button" id="btn-fix-pages" class="btn btn-ghost btn-sm">🔢 Retirer les numéros de page</button>
+            </div>
+            <div id="direction-suggest" class="hidden"></div>
+          </div>
+          <div id="preview-list" class="preview-list"></div>
+          <button id="btn-add-token" class="btn btn-ghost">+ Ajouter une ligne</button>
+          <div class="sticky-save">
+            <button id="btn-save-play" class="btn btn-primary btn-lg">✓ Enregistrer la pièce</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Vue d'ensemble de la pièce -->
+      <section id="screen-play" class="screen">
+        <h2 id="play-title">—</h2>
+
+        <div class="play-tabs" role="tablist" aria-label="Sections de la pièce">
+          <button type="button" class="play-tab-btn active" role="tab" data-play-tab="piece">📖 Pièce</button>
+          <button type="button" class="play-tab-btn" role="tab" data-play-tab="audio">🔊 Audio</button>
+          <button type="button" class="play-tab-btn director-only hidden" role="tab" data-play-tab="scene">🎬 Mise en scène</button>
+          <button type="button" class="play-tab-btn director-only hidden" role="tab" data-play-tab="gestion">⚙️ Gestion</button>
+        </div>
+
+        <div class="play-tab-content active" role="tabpanel" data-tab="piece">
+            <div class="panel">
+              <h3>Mon (ou mes) rôle(s)</h3>
+              <p class="hint">Personnage(s) que l'administrateur t'a attribué(s) pour cette pièce.</p>
+              <div id="character-picker" class="chip-list"></div>
+            </div>
+
+            <div class="panel">
+              <div class="section-row">
+                <h3>Progression</h3>
+                <span id="play-progress-pct" class="badge">0%</span>
+              </div>
+              <div class="progress-bar"><div id="play-progress-fill" class="progress-fill"></div></div>
+              <button id="btn-goto-next-weak" class="btn btn-ghost">▶ Aller à la scène prioritaire</button>
+            </div>
+
+            <div class="panel">
+              <h3>Actes &amp; scènes</h3>
+              <p class="hint" id="play-duration-total"></p>
+              <div id="scene-list" class="scene-list"></div>
+            </div>
+
+            <div class="panel">
+              <h3>🔍 Rechercher un passage</h3>
+              <p class="hint">Retrouve une réplique à partir d'un mot ou d'un bout de phrase, dans toute la pièce.</p>
+              <input type="text" id="play-search-input" class="search-input" placeholder="Mot ou bout de phrase…">
+              <div id="play-search-results"></div>
+            </div>
+
+            <div class="panel">
+              <h3>📄 Export PDF</h3>
+              <p class="hint">Génère une version imprimable du texte de la pièce (avec tes notes de mise en scène) pour l'avoir sur papier ou l'enregistrer en PDF via "Imprimer" → "Enregistrer en PDF".</p>
+              <button id="btn-export-pdf" class="btn btn-ghost">📄 Exporter en PDF</button>
+            </div>
+        </div>
+
+        <div class="play-tab-content" role="tabpanel" data-tab="audio">
+            <div class="panel">
+              <h3>🔊 Voix par personnage (mode audio)</h3>
+              <p class="hint">Les voix (hommes et femmes) sont générées par le serveur : tout le monde entend le même rendu, quel que soit le téléphone. Une réplique jamais écoutée peut prendre quelques secondes à générer, les suivantes sont instantanées. Si le serveur est injoignable, l'appli utilise en secours la voix de ton appareil.</p>
+              <div id="voice-picker" class="voice-picker"></div>
+            </div>
+
+            <div class="panel">
+              <h3>📥 Audio hors-ligne</h3>
+              <p class="hint">Choisis les scènes dont tu veux l'audio (voix réelles enregistrées, sinon synthèse) pour t'entraîner sans connexion. Utilise des données mobiles et de l'espace de stockage sur ce téléphone.</p>
+              <p id="offline-audio-status" class="hint">—</p>
+              <div id="offline-scene-picker" class="hidden">
+                <div class="offline-scene-toolbar">
+                  <span class="hint">🎭 = scène où tu joues</span>
+                  <span class="spacer"></span>
+                  <button type="button" id="offline-sel-mine" class="btn btn-ghost btn-sm">Mes scènes</button>
+                  <button type="button" id="offline-sel-all" class="btn btn-ghost btn-sm">Toutes</button>
+                  <button type="button" id="offline-sel-none" class="btn btn-ghost btn-sm">Aucune</button>
+                </div>
+                <div id="offline-scene-list" class="offline-scene-list"></div>
+              </div>
+              <div id="offline-audio-progress" class="progress-bar hidden"><div id="offline-audio-progress-fill" class="progress-fill"></div></div>
+              <button id="btn-download-offline-audio" class="btn btn-ghost">📥 Télécharger l'audio pour usage hors-ligne</button>
+              <button id="btn-cancel-offline-audio" class="btn btn-ghost hidden">Annuler le téléchargement</button>
+              <button id="btn-clear-offline-audio" class="btn btn-ghost hidden">🗑️ Supprimer l'audio hors-ligne</button>
+            </div>
+
+            <div class="panel">
+              <h3 id="recordings-panel-title">🎙️ Voix réelles des comédiens</h3>
+              <p class="hint" id="recordings-panel-hint">Enregistre la vraie voix d'un comédien sur ses répliques : les autres l'entendront à la place de la synthèse. Répliques non enregistrées → voix synthétique automatiquement.</p>
+              <button id="btn-goto-recordings" class="btn btn-ghost">🎙️ Gérer les enregistrements</button>
+            </div>
+        </div>
+
+        <div class="play-tab-content" role="tabpanel" data-tab="scene">
+            <div class="panel director-only hidden">
+              <h3>📊 Progression de la troupe</h3>
+              <p class="hint">Pourcentage de répliques acquises pour chaque membre, sur son (ou ses) personnage(s).</p>
+              <div id="troupe-stats"></div>
+            </div>
+
+            <div class="panel director-only hidden">
+              <h3>🎬 Notes de mise en scène</h3>
+              <p class="hint">Ajoute des remarques visibles par toute la troupe, et consulte les notes personnelles de chaque comédien sur ses répliques.</p>
+              <button id="btn-goto-director-notes" class="btn btn-ghost">🎬 Gérer les notes de mise en scène</button>
+            </div>
+
+            <div class="panel director-only hidden">
+              <h3>🗣️ Prononciation</h3>
+              <p class="hint">Corrige les mots que la voix lit mal (noms propres, mots étrangers) : à gauche le mot tel qu'il est écrit, à droite comment il doit se dire (par exemple « Gilles » → « Jile »). Valable pour toutes les voix de la troupe.</p>
+              <div id="pron-list"></div>
+              <button id="btn-add-pron" class="btn btn-ghost">+ Ajouter un mot</button>
+              <div class="pregen-box">
+                <p id="pregen-status" class="hint"></p>
+                <button id="btn-pregen" class="btn btn-ghost btn-sm admin-only hidden">⚙️ Préparer les voix maintenant</button>
+              </div>
+            </div>
+        </div>
+
+        <div class="play-tab-content" role="tabpanel" data-tab="gestion">
+            <div class="panel director-only hidden">
+              <h3>👥 Partage</h3>
+              <p class="hint">Une pièce n'est visible que par toi (admin) et la troupe à laquelle elle est assignée.</p>
+              <label class="field-label" for="share-troupe-select">Troupe</label>
+              <select id="share-troupe-select"><option value="">— Aucune —</option></select>
+            </div>
+
+            <div class="panel director-only hidden">
+              <h3>🎭 Distribution des rôles</h3>
+              <p class="hint">Pour chaque personnage, choisis le membre de la troupe qui le joue. Détermine ce qui est masqué en mode révision et les répliques que la personne peut enregistrer avec sa vraie voix.</p>
+              <div id="role-assignment"></div>
+            </div>
+
+            <div class="panel director-only hidden">
+              <h3>Modifier la pièce</h3>
+              <p class="hint">Corrige une erreur de découpage, ajoute ou modifie des répliques, sépare les didascalies. Les annotations, la progression et les enregistrements restent attachés aux répliques existantes, même si tu en ajoutes ou en retires d'autres ; seules les répliques supprimées perdent les leurs.</p>
+              <button id="btn-edit-play" class="btn btn-ghost">✏️ Éditer le texte de la pièce</button>
+            </div>
+
+            <div class="panel danger-zone admin-only hidden">
+              <details>
+                <summary>Options avancées</summary>
+                <button id="btn-delete-play" class="btn btn-danger">Supprimer cette pièce pour tout le monde</button>
+              </details>
+            </div>
+        </div>
+      </section>
+
+      <!-- Mode révision -->
+      <section id="screen-revision" class="screen">
+        <div class="revision-toolbar">
+          <button id="rev-prev-scene" class="icon-btn">‹</button>
+          <select id="rev-scene-select"></select>
+          <button id="rev-next-scene" class="icon-btn">›</button>
+        </div>
+        <label class="switch-row">
+          <input type="checkbox" id="rev-hide-others">
+          <span>Masquer aussi les répliques des autres</span>
+        </label>
+        <label class="switch-row">
+          <input type="checkbox" id="rev-partner-mode">
+          <span>Mode partenaire</span>
+        </label>
+        <div id="rev-lines" class="rev-lines"></div>
+      </section>
+
+      <!-- Gestion des enregistrements (voix reelles) -->
+      <section id="screen-recordings" class="screen">
+        <div class="revision-toolbar">
+          <button id="rec-prev-scene" class="icon-btn">‹</button>
+          <select id="rec-scene-select"></select>
+          <button id="rec-next-scene" class="icon-btn">›</button>
+        </div>
+        <button id="btn-goto-tableread" class="btn btn-ghost admin-only hidden">🎬 Découper une lecture à table (scène ou pièce entière)</button>
+        <div id="rec-lines" class="rev-lines"></div>
+      </section>
+
+      <!-- Notes de mise en scene (metteur en scene / admin) -->
+      <section id="screen-directornotes" class="screen">
+        <div class="revision-toolbar">
+          <button id="dn-prev-scene" class="icon-btn">‹</button>
+          <select id="dn-scene-select"></select>
+          <button id="dn-next-scene" class="icon-btn">›</button>
+        </div>
+        <p class="hint">Tes remarques sont visibles par toute la troupe. Les notes personnelles affichées sont celles des comédiens sur leurs propres répliques.</p>
+        <button id="btn-export-director-notes-pdf" class="btn btn-ghost">📄 Exporter toutes les notes en PDF</button>
+        <div id="dn-lines" class="rev-lines"></div>
+      </section>
+
+      <!-- Decoupage d'une lecture a table -->
+      <section id="screen-tableread" class="screen">
+        <h2>Lecture à table</h2>
+        <label class="field-label" for="tableread-scope-select">Portée de l'enregistrement</label>
+        <select id="tableread-scope-select"></select>
+        <div class="panel" id="tableread-upload-panel">
+          <p class="hint">Importe l'enregistrement (fichier audio existant), ou enregistre-le directement ici — de toute la pièce, ou juste de la scène choisie ci-dessus. Ensuite, pour chaque réplique, tu marqueras le moment où elle commence.</p>
+          <label class="field-label" for="tableread-file">Importer un fichier audio</label>
+          <input type="file" id="tableread-file" accept="audio/*">
+          <p class="hint">— ou —</p>
+          <button id="tableread-record" class="btn btn-ghost">🎙️ Enregistrer maintenant dans le navigateur</button>
+          <div id="tableread-record-status" class="hint hidden"></div>
+        </div>
+        <div class="panel hidden" id="tableread-editor-panel">
+          <audio id="tableread-audio" controls style="width:100%"></audio>
+          <p class="hint">Écoute, et pour chaque réplique ci-dessous, touche "Marquer ici" au moment exact où le comédien commence à la dire (mets en pause si besoin).</p>
+        </div>
+        <div id="tableread-lines" class="rev-lines"></div>
+        <div class="sticky-save">
+          <button id="btn-tableread-split" class="btn btn-primary btn-lg hidden">✂️ Découper et enregistrer les répliques marquées</button>
+        </div>
+      </section>
+
+      <!-- Mode audio -->
+      <section id="screen-audio" class="screen">
+        <div class="revision-toolbar">
+          <button id="audio-prev-scene" class="icon-btn">‹</button>
+          <select id="audio-scene-select"></select>
+          <button id="audio-next-scene" class="icon-btn">›</button>
+        </div>
+
+        <div class="audio-controls panel">
+          <div class="audio-buttons">
+            <button id="audio-play" class="btn btn-primary btn-lg">▶ Lancer</button>
+            <button id="audio-stop" class="btn btn-ghost">⏹ Stop</button>
+          </div>
+          <details class="audio-settings">
+            <summary>⚙️ Réglages du mode audio</summary>
+            <div class="field-row">
+              <label>Vitesse
+                <input type="range" id="audio-rate" min="0.6" max="1.4" step="0.1" value="1">
+              </label>
+            </div>
+            <label class="switch-row">
+              <input type="checkbox" id="audio-speak-mine">
+              <span>🗣️ Dire aussi mes répliques (pas de pause, écoute continue)</span>
+            </label>
+            <label class="switch-row">
+              <input type="checkbox" id="audio-auto-resume">
+              <span>🚗 Reprise automatique (mode voiture) — durée adaptée à la longueur de chaque réplique</span>
+            </label>
+            <label>Rythme de récitation estimé (pour calculer la pause)
+              <input type="number" id="audio-wpm" min="60" max="220" value="130" step="10"> mots/min
+            </label>
+            <label class="switch-row">
+              <input type="checkbox" id="audio-hide-mine" checked>
+              <span>🙈 Cacher mes répliques (à réciter de mémoire)</span>
+            </label>
+            <label class="switch-row">
+              <input type="checkbox" id="audio-hide-others">
+              <span>Masquer aussi les répliques des autres</span>
+            </label>
+            <p class="hint">Touche une réplique dans la liste ci-dessous pour reprendre la lecture à cet endroit.</p>
+            <button id="btn-goto-voices" class="btn btn-ghost">🔊 Changer les voix des personnages</button>
+          </details>
+        </div>
+
+        <div id="audio-current" class="audio-current"></div>
+        <div id="audio-cue" class="audio-cue hidden">
+          <div class="audio-cue-badge">🎬 À vous !</div>
+          <div id="audio-cue-character"></div>
+          <div id="audio-cue-note" class="annotation-text"></div>
+          <div id="audio-timer-display" class="muted hidden"></div>
+        </div>
+        <div id="audio-lines" class="rev-lines"></div>
+
+        <div id="audio-floating-bar" class="audio-floating-bar hidden">
+          <div id="audio-cue-actions" class="audio-cue-actions hidden">
+            <button id="audio-hear-line" class="btn btn-ghost">🔊 Écouter cette réplique</button>
+            <button id="audio-continue" class="btn btn-primary btn-lg">✓ J'ai dit ma réplique, continuer</button>
+          </div>
+          <div class="audio-transport-row">
+            <button id="audio-pause" class="btn btn-ghost">⏸ Pause</button>
+            <button id="audio-stop-floating" class="btn btn-ghost">⏹ Stop</button>
+          </div>
+          <div class="audio-loop-row">
+            <button id="audio-loop-start" class="btn btn-ghost btn-sm">🔁 Marquer début</button>
+            <button id="audio-loop-end" class="btn btn-ghost btn-sm">🔁 Marquer fin</button>
+            <button id="audio-loop-clear" class="btn btn-ghost btn-sm hidden">✕ Boucle</button>
+          </div>
+          <p id="audio-loop-status" class="hint hidden"></p>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section id="screen-stats" class="screen">
+        <h2>Statistiques</h2>
+        <div class="panel">
+          <div class="section-row">
+            <h3>Pièce maîtrisée</h3>
+            <span id="stats-pct" class="badge">0%</span>
+          </div>
+          <div class="progress-bar"><div id="stats-fill" class="progress-fill"></div></div>
+          <p id="stats-detail" class="hint"></p>
+        </div>
+        <div class="panel">
+          <h3>Scènes à retravailler en priorité</h3>
+          <div id="stats-scenes" class="card-list"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <nav id="bottom-nav">
+      <button data-nav="library" class="nav-btn"><span>📚</span><small>Bibliothèque</small></button>
+      <button data-nav="play" class="nav-btn"><span>📖</span><small>Pièce</small></button>
+      <button data-nav="revision" class="nav-btn"><span>🙈</span><small>Révision</small></button>
+      <button data-nav="audio" class="nav-btn"><span>🎧</span><small>Audio</small></button>
+      <button data-nav="stats" class="nav-btn"><span>📊</span><small>Stats</small></button>
+    </nav>
+  </div>
+
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<!-- Modale obligatoire : changer le mot de passe temporaire a la premiere connexion -->
+<div id="modal-change-password" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h2>🔒 Choisis ton mot de passe</h2>
+    <p class="hint">Pour des raisons de sécurité, remplace le mot de passe temporaire qui t'a été communiqué par un mot de passe que toi seul(e) connais.</p>
+    <form id="change-password-form">
+      <div id="current-password-field" class="hidden">
+        <label class="field-label" for="current-password">Mot de passe actuel</label>
+        <input id="current-password" type="password" autocomplete="current-password">
+      </div>
+      <label class="field-label" for="new-password-1">Nouveau mot de passe</label>
+      <input id="new-password-1" type="password" autocomplete="new-password" required minlength="4">
+      <label class="field-label" for="new-password-2">Confirme-le</label>
+      <input id="new-password-2" type="password" autocomplete="new-password" required minlength="4">
+      <button type="submit" class="btn btn-primary btn-lg">Valider</button>
+      <button type="button" id="btn-cancel-password" class="btn btn-ghost hidden">Annuler</button>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

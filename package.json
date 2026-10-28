@@ -1,0 +1,19 @@
+{
+  "name": "theatre-repliques",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Application d'entraide pour apprendre des repliques de theatre en troupe",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "setup-tts": "node scripts/setup-tts.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "nodemailer": "^10.0.10"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
