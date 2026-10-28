@@ -148,7 +148,7 @@ textarea { resize: vertical; }
 .token-row input.char-input { width: auto; flex: 1; min-width: 90px; padding: 6px 8px; font-size: 13px; text-transform: uppercase; }
 .token-row textarea.text-input { padding: 8px; font-size: 14px; min-height: 38px; }
 .token-row input.title-input { padding: 8px; font-size: 14px; font-weight: 700; }
-.token-row .row-actions { display: flex; gap: 4px; }
+.token-row .row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .sticky-save { position: sticky; bottom: calc(var(--nav-h) + 8px); padding-top: 8px; }
 
 /* ---------- Character chips ---------- */

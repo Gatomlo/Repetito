@@ -604,7 +604,7 @@
     }
 
     const actions = el('div', 'row-actions');
-    actions.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" data-act="merge-up">⬆ Fusionner</button>${t.type === 'line' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="detach" title="Sélectionne d\'abord un passage dans la réplique">✂️ Didascalie</button>' : ''}<button type="button" class="btn btn-ghost btn-sm" data-act="delete">🗑</button>`;
+    actions.innerHTML = `<button type="button" class="btn btn-ghost btn-sm" data-act="merge-up">⬆ Fusionner</button>${t.type === 'line' ? '<button type="button" class="btn btn-ghost btn-sm" data-act="detach" title="Sélectionne d\'abord un passage dans la réplique">✂️ Didascalie</button>' : ''}<button type="button" class="btn btn-ghost btn-sm" data-act="scene-above" title="Insérer un repère de nouvelle scène juste au-dessus de cette ligne">🎬 Scène ici</button><button type="button" class="btn btn-ghost btn-sm" data-act="add-below" title="Insérer une ligne vide juste en dessous">➕ Ligne</button><button type="button" class="btn btn-ghost btn-sm" data-act="delete">🗑</button>`;
     row.appendChild(actions);
     return row;
   }
@@ -2932,6 +2932,18 @@ ${bodyHtml}
       const row = btn.closest('.token-row');
       const i = +row.dataset.index;
       if (btn.dataset.act === 'delete') { importTokens.splice(i, 1); renderImportPreview(); }
+      else if (btn.dataset.act === 'scene-above') {
+        importTokens.splice(i, 0, { type: 'scene', title: 'Nouvelle scène' });
+        renderImportPreview();
+        const inp = $('#preview-list').children[i].querySelector('.title-input');
+        if (inp) { inp.scrollIntoView({ block: 'center' }); inp.focus(); inp.select(); }
+      }
+      else if (btn.dataset.act === 'add-below') {
+        importTokens.splice(i + 1, 0, { type: 'line', character: '', text: '' });
+        renderImportPreview();
+        const ta = $('#preview-list').children[i + 1].querySelector('.char-input');
+        if (ta) { ta.scrollIntoView({ block: 'center' }); ta.focus(); }
+      }
       else if (btn.dataset.act === 'detach') {
         const ta = row.querySelector('textarea');
         const from = ta.selectionStart, to = ta.selectionEnd;
