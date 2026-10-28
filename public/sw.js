@@ -8,7 +8,7 @@
 // Chemin de montage (ex. '/repetito' derriere une passerelle, '' a la racine), deduit
 // de la portee (scope) avec laquelle ce service worker a ete enregistre.
 const BASE = new URL(self.registration.scope).pathname.replace(/\/$/, '');
-const SHELL_CACHE = 'repetito-shell-v1';
+const SHELL_CACHE = 'repetito-shell-v2';
 const SHELL_ASSETS = [
   BASE + '/',
   BASE + '/index.html',
