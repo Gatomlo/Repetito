@@ -75,3 +75,12 @@ test('jeton dans l\'URL : tolere seulement pour la lecture des enregistrements a
   assert.notEqual((await viaUrl('/api/recordings/inconnu/ligne')).status, 401, 'accepte pour l\'audio (404 attendu, pas 401)');
   assert.equal((await plays(localToken)).status, 200, 'l\'en-tete Authorization marche toujours');
 });
+
+test('crochet gatewayAccounts : liste des comptes pour l\'administration de la passerelle, sans aucun secret', () => {
+  const list = app.gatewayAccounts();
+  assert.ok(Array.isArray(list) && list.length >= 1, 'au moins un compte');
+  for (const a of list) {
+    assert.ok(a.key, 'cle a saisir dans « compte local »');
+    assert.doesNotMatch(JSON.stringify(a), /hash|passw|token|secret|scrypt|bcrypt/i);
+  }
+});

@@ -993,4 +993,7 @@ tts.warmup().then(() => console.log('Voix de synthese pretes.'));
 if (require.main === module) {
   app.listen(PORT, () => console.log(`Répétito disponible sur http://localhost:${PORT}`));
 }
+// Liste des comptes pour l'administration de node-gateway (lecture seule, facultatif : voir node-gateway/README).
+app.gatewayAccounts = () => Object.values(db.users).map((u) => ({ key: u.email || u.name, login: u.name, email: u.email || '', name: u.name, detail: u.role }));
+
 module.exports = app;
