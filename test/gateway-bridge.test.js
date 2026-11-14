@@ -26,7 +26,12 @@ test.before(async () => {
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${srv.address().port}/rep`;
   try {
-    // le tout premier login cree le compte administrateur
+    // Derriere la passerelle, le premier visiteur (anonyme ou simple membre) ne peut plus creer le compte admin.
+    const first = (h) => fetch(base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify({ username: 'intrus', password: 'motdepasse-intrus' }) });
+    assert.equal((await first({ 'x-test-gateway': JSON.stringify({ app: 'repetito', role: null, user: null }) })).status, 403);
+    assert.equal((await first(gw('member'))).status, 403);
+    assert.equal((await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'thomas', password: 'court' }) })).status, 400, '8 caracteres minimum');
+    // le tout premier login (hors passerelle) cree le compte administrateur
     const r = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'thomas', password: 'motdepasse' }) });
     assert.equal(r.status, 200);
     localToken = (await r.json()).token;
@@ -61,4 +66,12 @@ test('aucun compte cree : inconnu, anonyme ou sans droit => 204 (login normal)',
   }
   const r = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'inconnu', password: 'xxxx' }) });
   assert.equal(r.status, 404, 'le compte n\'existe toujours pas');
+});
+
+test('jeton dans l\'URL : tolere seulement pour la lecture des enregistrements audio', async () => {
+  const viaUrl = (p) => fetch(base + p + '?token=' + localToken);
+  assert.equal((await viaUrl('/api/plays')).status, 401, 'refuse hors audio');
+  assert.equal((await viaUrl('/api/auth/me')).status, 401);
+  assert.notEqual((await viaUrl('/api/recordings/inconnu/ligne')).status, 401, 'accepte pour l\'audio (404 attendu, pas 401)');
+  assert.equal((await plays(localToken)).status, 200, 'l\'en-tete Authorization marche toujours');
 });

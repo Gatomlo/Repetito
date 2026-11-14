@@ -6,6 +6,13 @@
 // cote serveur, dans le meme process : un client ne peut pas le fabriquer. En mode autonome
 // (outil lance seul), req.gateway est absent et tout ce module est sans effet.
 
+// Vrai si l'outil est monte derriere la passerelle (req.gateway existe, meme pour un visiteur anonyme).
+// Sert a fermer, dans ce cas seulement, des portes ouvertes en mode autonome (ex. creation du mot de passe
+// admin par le premier visiteur) : derriere la passerelle, c'est elle qui authentifie.
+function behindGateway(req) {
+  return !!(req && req.gateway);
+}
+
 // Identite transmise par la passerelle, ou null (anonyme, ou connecte sans droit sur cet outil).
 // minRole 'admin' : refuse un simple "member".
 function identity(req, minRole) {
@@ -36,4 +43,4 @@ function matchLocal(id, rows, fields) {
   return by(f.email, id.email) || by(f.login, id.login);
 }
 
-module.exports = { identity, matchLocal };
+module.exports = { identity, matchLocal, behindGateway };

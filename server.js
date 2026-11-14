@@ -135,11 +135,20 @@ app.get('/api/auth/gateway', (req, res) => {
 // Autorise le jeton via l'en-tete Authorization (cas normal, tous les appels fetch())
 // ou via ?token= en secours (les balises <audio src> natives ne peuvent pas envoyer
 // d'en-tetes personnalises).
+// Duree de vie d'une session : 90 jours d'inactivite (avant : jamais d'expiration, un jeton perdu valait indefiniment).
+// L'activite la prolonge, au plus une fois par jour pour ne pas reecrire la base a chaque requete.
+const SESSION_IDLE_MS = 90 * 24 * 3600 * 1000;
+// Le jeton dans l'URL (?token=) n'est tolere que pour la lecture des enregistrements audio (balise <audio>, qui ne
+// peut pas envoyer d'en-tete) : partout ailleurs il finirait dans les journaux et l'historique du navigateur.
 function requireAuth(req, res, next) {
   const auth = req.headers.authorization || '';
-  const token = (auth.startsWith('Bearer ') ? auth.slice(7) : null) || (req.query.token || '').toString() || null;
+  const queryAllowed = req.method === 'GET' && req.path.startsWith('/api/recordings/');
+  const token = (auth.startsWith('Bearer ') ? auth.slice(7) : null) || (queryAllowed ? (req.query.token || '').toString() : '') || null;
   const session = token && db.sessions[token];
   if (!session || !db.users[session.userId]) return res.status(401).json({ error: 'Non authentifié — reconnecte-toi.' });
+  const last = session.lastSeen || session.createdAt || 0;
+  if (Date.now() - last > SESSION_IDLE_MS) { delete db.sessions[token]; persist(); return res.status(401).json({ error: 'Session expirée — reconnecte-toi.' }); }
+  if (Date.now() - last > 24 * 3600 * 1000) { session.lastSeen = Date.now(); persist(); }
   // Jeton « passerelle » : valable seulement tant que la passerelle se porte garante du meme compte
   // (deconnexion ou droit retire la-bas => 401 des la requete suivante).
   if (session.bridge && gatewayUserId(req) !== session.userId) return res.status(401).json({ error: 'Non authentifié — reconnecte-toi.' });
@@ -217,7 +226,11 @@ app.post('/api/auth/login', (req, res) => {
       recordFailure(ipKey, 30); recordFailure(userKey, 8);
       return res.status(404).json({ error: "Compte inconnu. Demande à l'administrateur de te créer un compte." });
     }
-    if (password.length < 4) return res.status(400).json({ error: 'Mot de passe trop court (4 caractères minimum)' });
+    // Derriere node-gateway, c'est elle qui authentifie : le premier visiteur ne peut plus s'approprier l'outil.
+    if (gatewayBridge.behindGateway(req) && !gatewayBridge.identity(req, 'admin')) {
+      return res.status(403).json({ error: "Connecte-toi à la passerelle avec un compte ayant le droit admin pour créer le premier compte." });
+    }
+    if (password.length < 8) return res.status(400).json({ error: 'Mot de passe trop court (8 caractères minimum)' });
     id = uid();
     db.users[id] = { id, name: username, passwordHash: hashPassword(password), role: 'admin', mustChangePassword: false, createdAt: Date.now() };
     db.usersByName[key] = id;
@@ -235,7 +248,7 @@ app.post('/api/auth/login', (req, res) => {
 
 app.post('/api/auth/change-password', requireAuth, (req, res) => {
   const newPassword = (req.body.newPassword || '').toString();
-  if (newPassword.length < 4) return res.status(400).json({ error: 'Nouveau mot de passe trop court (4 caractères minimum)' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'Nouveau mot de passe trop court (8 caractères minimum)' });
   // Changement obligatoire (mot de passe temporaire) : la session valide suffit, pas
   // besoin de reverifier l'ancien. Changement volontaire (futur) : verification normale.
   if (!req.user.mustChangePassword) {
@@ -285,7 +298,7 @@ app.post('/api/auth/reset-with-code', (req, res) => {
   const code = (req.body.code || '').toString().trim();
   const newPassword = (req.body.newPassword || '').toString();
   if (!username || !code || !newPassword) return res.status(400).json({ error: 'Identifiant, code et nouveau mot de passe requis' });
-  if (newPassword.length < 4) return res.status(400).json({ error: 'Nouveau mot de passe trop court (4 caractères minimum)' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'Nouveau mot de passe trop court (8 caractères minimum)' });
   const ipKey = 'rcip:' + clientIp(req), userKey = 'rc:' + username + ':' + clientIp(req);
   const wait = blockedSeconds([ipKey, userKey]);
   if (wait) return tooManyAttempts(res, wait);

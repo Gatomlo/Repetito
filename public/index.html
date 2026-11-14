@@ -40,7 +40,7 @@
       <form id="recovery-form" class="hidden">
         <p class="hint" id="recovery-sent-hint">Un code vient d'être envoyé par mail (valable 30 minutes), s'il existe et a une adresse mail enregistrée.</p>
         <input id="recovery-code" type="text" placeholder="Code reçu par mail" maxlength="6" autocomplete="off" required>
-        <input id="recovery-new-password" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" required minlength="4">
+        <input id="recovery-new-password" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password" required minlength="8">
         <button type="submit" class="btn btn-primary btn-lg">Définir mon nouveau mot de passe</button>
         <button type="button" id="btn-resend-recovery" class="btn btn-ghost btn-sm">Renvoyer le code</button>
         <button type="button" id="btn-cancel-recovery" class="btn btn-ghost">← Retour à la connexion</button>
@@ -512,9 +512,9 @@
         <input id="current-password" type="password" autocomplete="current-password">
       </div>
       <label class="field-label" for="new-password-1">Nouveau mot de passe</label>
-      <input id="new-password-1" type="password" autocomplete="new-password" required minlength="4">
+      <input id="new-password-1" type="password" autocomplete="new-password" required minlength="8">
       <label class="field-label" for="new-password-2">Confirme-le</label>
-      <input id="new-password-2" type="password" autocomplete="new-password" required minlength="4">
+      <input id="new-password-2" type="password" autocomplete="new-password" required minlength="8">
       <button type="submit" class="btn btn-primary btn-lg">Valider</button>
       <button type="button" id="btn-cancel-password" class="btn btn-ghost hidden">Annuler</button>
     </form>
