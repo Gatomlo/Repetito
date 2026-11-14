@@ -18,3 +18,5 @@
 **Déploiement** : serveur Node seul ou monté sous `/repetito` derrière `../node-gateway` ; HTTPS requis pour PWA/Wake Lock. Dépôt GitHub : `Gatomlo/Repetito`.
 
 **Méthode** : tester par API/ligne de commande avant les captures ; garder ce fichier à jour si l'architecture ou le déploiement change.
+
+- Connexion centralisée (node-gateway) : `gateway-bridge.js` (copie de `node-gateway/docs/gateway-bridge.js`) + route `GET /api/auth/gateway` et contrôle dans `requireAuth` (`server.js`) + `tryGatewayLogin()` au démarrage du front (`public/app.js`). Si la passerelle fournit `req.gateway` (droit sur cet outil), le front obtient un jeton pour le compte local **de même e-mail, sinon de même nom** (aucun compte créé). Ce jeton ne vaut que tant que la passerelle se porte garante du même compte (contrôle à chaque requête) ; une déconnexion volontaire désactive le pont pour l'onglet. Hors passerelle : 204, rien ne change. `REPETITO_DATA_DIR` (facultatif) déplace `data/` pour les essais. Test : `test/gateway-bridge.test.js` (`npm test`).

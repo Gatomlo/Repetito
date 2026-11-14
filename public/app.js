@@ -2778,6 +2778,7 @@ ${bodyHtml}
       if (!user) return;
       if (confirm('Se déconnecter de ce compte (' + user.name + ') ?')) {
         try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) { /* tant pis */ }
+        try { sessionStorage.setItem('tr_no_gateway', '1'); } catch (e) { /* tant pis */ } // ne pas se reconnecter aussitot via la passerelle
         clearSession();
         location.reload();
       }
@@ -3277,8 +3278,24 @@ ${bodyHtml}
     box.classList.remove('hidden');
   }
 
-  function init() {
+  // Connexion centralisee de node-gateway : sans jeton, demande au serveur si la passerelle se porte garante d'un
+  // compte (route sans effet hors passerelle : 204). Non tente apres une deconnexion volontaire (cet onglet).
+  async function tryGatewayLogin() {
+    try {
+      if (sessionStorage.getItem('tr_no_gateway') === '1') return null;
+      const res = await fetch(BASE + '/api/auth/gateway', { credentials: 'same-origin' });
+      if (res.status !== 200) return null;
+      const s = await res.json();
+      return s && s.token && s.user ? s : null;
+    } catch (e) { return null; }
+  }
+
+  async function init() {
     session = loadSession();
+    if (!session && navigator.onLine) {
+      const viaGateway = await tryGatewayLogin();
+      if (viaGateway) { saveSession(viaGateway); session = viaGateway; }
+    }
     user = session ? session.user : null;
     wireEvents();
     if (window.speechSynthesis) {

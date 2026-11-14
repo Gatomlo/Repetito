@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const tts = require('./tts');
 const pregen = require('./pregen');
 const mailer = require('./mailer');
+const gatewayBridge = require('./gateway-bridge');
 
 // Filet de securite : une erreur imprevue (ex. process enfant, pipe ferme) ne doit
 // jamais faire tomber tout le serveur pour toute la troupe. On log et on continue.
@@ -17,7 +18,7 @@ if (require.main === module) {
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.REPETITO_DATA_DIR || path.join(__dirname, 'data'); // surcharge : essais automatiques
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 app.use(express.json({ limit: '10mb' }));
@@ -105,12 +106,31 @@ function generateTempPassword() {
   for (let i = 0; i < 8; i++) pw += chars[crypto.randomInt(chars.length)];
   return pw;
 }
-function makeSession(userId) {
+function makeSession(userId, extra) {
   const token = crypto.randomBytes(32).toString('hex');
-  db.sessions[token] = { userId, createdAt: Date.now() };
+  db.sessions[token] = Object.assign({ userId, createdAt: Date.now() }, extra);
   persist();
   return { token, user: publicUser(db.users[userId]) };
 }
+
+// ---------- Connexion centralisee de node-gateway ----------
+// La passerelle pose req.gateway (cote serveur, dans le meme process) quand l'utilisateur y est connecte avec un
+// droit sur cet outil. Compte local = meme adresse e-mail, sinon meme nom. Aucun compte n'est cree.
+const BRIDGE_PRUNE_MS = 24 * 3600 * 1000;
+function gatewayUserId(req) {
+  const id = gatewayBridge.identity(req);
+  if (!id) return null;
+  const u = gatewayBridge.matchLocal(id, Object.values(db.users), { email: 'email', login: 'name' });
+  return u ? u.id : null;
+}
+// Le front appelle cette route au demarrage s'il n'a pas de jeton : si la passerelle se porte garante d'un
+// compte local, il recoit un jeton « passerelle ». 204 sinon (login normal).
+app.get('/api/auth/gateway', (req, res) => {
+  const uid = gatewayUserId(req);
+  if (!uid) return res.status(204).end();
+  Object.keys(db.sessions).forEach((t) => { const x = db.sessions[t]; if (x.bridge && Date.now() - x.createdAt > BRIDGE_PRUNE_MS) delete db.sessions[t]; });
+  res.json(makeSession(uid, { bridge: true }));
+});
 
 // Autorise le jeton via l'en-tete Authorization (cas normal, tous les appels fetch())
 // ou via ?token= en secours (les balises <audio src> natives ne peuvent pas envoyer
@@ -120,6 +140,9 @@ function requireAuth(req, res, next) {
   const token = (auth.startsWith('Bearer ') ? auth.slice(7) : null) || (req.query.token || '').toString() || null;
   const session = token && db.sessions[token];
   if (!session || !db.users[session.userId]) return res.status(401).json({ error: 'Non authentifié — reconnecte-toi.' });
+  // Jeton « passerelle » : valable seulement tant que la passerelle se porte garante du meme compte
+  // (deconnexion ou droit retire la-bas => 401 des la requete suivante).
+  if (session.bridge && gatewayUserId(req) !== session.userId) return res.status(401).json({ error: 'Non authentifié — reconnecte-toi.' });
   req.user = db.users[session.userId];
   next();
 }
